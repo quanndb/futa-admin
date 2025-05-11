@@ -12,6 +12,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Futa brand colors
+        futa: {
+          primary: "#ef5222",
+          secondary: "#00613d",
+          "primary-dark": "#ff6b3d", // Lighter version for dark mode
+          "secondary-dark": "#00824f", // Lighter version for dark mode
+        },
+        // UI colors
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

@@ -8,8 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Bus } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import { ThemeSwitcher } from "@/components/theme-switcher"
+import { AuthService } from "@/services"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
+import Image from "next/image"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -22,13 +26,25 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate authentication
-    setTimeout(() => {
-      // In a real app, you would validate credentials with your backend
+    try {
+      const response = await AuthService.login({ email, password })
+
+      // Lưu token vào localStorage
+      localStorage.setItem("authToken", response.token)
       localStorage.setItem("isAuthenticated", "true")
-      setIsLoading(false)
+
+      // Chuyển hướng đến trang tổng quan
       router.push("/dashboard")
-    }, 1500)
+    } catch (error) {
+      console.error("Lỗi đăng nhập:", error)
+      toast({
+        title: "Đăng nhập thất bại",
+        description: "Email hoặc mật khẩu không đúng. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -39,13 +55,21 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary p-3 rounded-full">
-              <Bus className="h-6 w-6 text-primary-foreground" />
+            <div className="relative w-32 h-32">
+              <Image
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-kqSLfOPymtqQypOC6blpXiqPNNMvUy.png"
+                alt="Logo Futa"
+                fill
+                className="object-contain"
+                priority
+              />
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">BusGo Admin</CardTitle>
+          <CardTitle className="text-2xl text-center text-futa-primary dark:text-futa-primary-dark">
+            Futa Admin
+          </CardTitle>
           <CardDescription className="text-center">
-            Enter your credentials to access the admin dashboard
+            Nhập thông tin đăng nhập để truy cập vào trang quản trị
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -55,14 +79,14 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@busgo.com"
+                placeholder="admin@futa.vn"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Mật khẩu</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -80,18 +104,23 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                  <span className="sr-only">{showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}</span>
                 </Button>
               </div>
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign in"}
+            <Button
+              className="w-full bg-futa-primary hover:bg-futa-primary/90 dark:bg-futa-primary-dark dark:hover:bg-futa-primary-dark/90"
+              type="submit"
+              disabled={isLoading}
+            >
+              {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
             </Button>
           </CardFooter>
         </form>
       </Card>
+      <Toaster />
     </div>
   )
 }

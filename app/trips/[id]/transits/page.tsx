@@ -1,7 +1,5 @@
 "use client"
 
-import { DialogTrigger } from "@/components/ui/dialog"
-
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -17,6 +15,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -26,6 +25,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { ArrowLeft, GripVertical, Plus, Trash2, Clock } from "lucide-react"
 import Link from "next/link"
+import api from "@/lib/axios"
 
 // Transit point type enum
 type TransitPointType = "PLACE" | "STATION" | "OFFICE" | "TRANSPORT"
@@ -50,105 +50,81 @@ interface TripTransit {
   type: "PICKUP" | "DROPOFF" | "STOP"
 }
 
-// Sample transit points data
-const transitPointsData: TransitPoint[] = [
-  {
-    id: "tp-001",
-    name: "Central Bus Station",
-    address: "123 Main St, New York, NY",
-    hotline: "+1 (555) 123-4567",
-    type: "STATION",
-  },
-  {
-    id: "tp-002",
-    name: "Downtown Office",
-    address: "456 Broadway, New York, NY",
-    hotline: "+1 (555) 234-5678",
-    type: "OFFICE",
-  },
-  {
-    id: "tp-003",
-    name: "Airport Terminal",
-    address: "JFK Airport, Queens, NY",
-    hotline: "+1 (555) 345-6789",
-    type: "TRANSPORT",
-  },
-  {
-    id: "tp-004",
-    name: "Shopping Mall",
-    address: "789 5th Ave, New York, NY",
-    hotline: "+1 (555) 456-7890",
-    type: "PLACE",
-  },
-  {
-    id: "tp-005",
-    name: "University Campus",
-    address: "100 University Dr, Boston, MA",
-    hotline: "+1 (555) 567-8901",
-    type: "PLACE",
-  },
-]
-
-// Sample trip data
-const tripData = {
-  id: "trip-001",
-  code: "NYC-BOS",
-  name: "New York to Boston Express",
-  description: "Direct express service from NYC to Boston",
-  status: "ACTIVE",
+// Trip interface
+interface Trip {
+  id: string
+  code: string
+  name: string
+  description: string
+  status: "ACTIVE" | "INACTIVE"
 }
-
-// Sample trip transits data
-const tripTransitsData: TripTransit[] = [
-  {
-    id: "tt-001",
-    tripId: "trip-001",
-    transitPointId: "tp-001",
-    transitPoint: transitPointsData[0],
-    arrivalTime: "08:00",
-    transitOrder: 0,
-    type: "PICKUP",
-  },
-  {
-    id: "tt-002",
-    tripId: "trip-001",
-    transitPointId: "tp-004",
-    transitPoint: transitPointsData[3],
-    arrivalTime: "08:30",
-    transitOrder: 1,
-    type: "STOP",
-  },
-  {
-    id: "tt-003",
-    tripId: "trip-001",
-    transitPointId: "tp-005",
-    transitPoint: transitPointsData[4],
-    arrivalTime: "12:00",
-    transitOrder: 2,
-    type: "DROPOFF",
-  },
-]
 
 export default function TripTransitsPage() {
   const params = useParams()
   const tripId = params.id as string
 
-  const [trip, setTrip] = useState(tripData)
-  const [tripTransits, setTripTransits] = useState<TripTransit[]>(tripTransitsData)
-  const [availableTransitPoints, setAvailableTransitPoints] = useState<TransitPoint[]>(transitPointsData)
+  const [trip, setTrip] = useState<Trip | null>(null)
+  const [tripTransits, setTripTransits] = useState<TripTransit[]>([])
+  const [availableTransitPoints, setAvailableTransitPoints] = useState<TransitPoint[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     transitPointId: "",
     arrivalTime: "",
     type: "PICKUP" as "PICKUP" | "DROPOFF" | "STOP",
   })
 
-  // Filter out transit points that are already in the trip
+  // Fetch trip and transit points on component mount
   useEffect(() => {
-    const usedTransitPointIds = tripTransits.map((transit) => transit.transitPointId)
-    const filteredTransitPoints = transitPointsData.filter((point) => !usedTransitPointIds.includes(point.id))
-    setAvailableTransitPoints(filteredTransitPoints)
-  }, [tripTransits])
+    fetchTrip()
+    fetchTripTransits()
+    fetchAvailableTransitPoints()
+  }, [tripId])
+
+  const fetchTrip = async () => {
+    try {
+      const response = await api.get(`/trips/${tripId}`)
+      setTrip(response.data)
+    } catch (error) {
+      console.error("Error fetching trip:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải thông tin chuyến đi. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const fetchTripTransits = async () => {
+    setIsLoading(true)
+    try {
+      const response = await api.get(`/trips/${tripId}/transits`)
+      setTripTransits(response.data)
+    } catch (error) {
+      console.error("Error fetching trip transits:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải danh sách điểm trung chuyển của chuyến đi. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchAvailableTransitPoints = async () => {
+    try {
+      const response = await api.get(`/trips/${tripId}/available-transit-points`)
+      setAvailableTransitPoints(response.data)
+    } catch (error) {
+      console.error("Error fetching available transit points:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải danh sách điểm trung chuyển khả dụng. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -180,46 +156,67 @@ export default function TripTransitsPage() {
     })
   }
 
-  const handleAddTransit = () => {
-    const selectedTransitPoint = availableTransitPoints.find((point) => point.id === formData.transitPointId)
-    if (!selectedTransitPoint) return
+  const handleAddTransit = async () => {
+    try {
+      setIsLoading(true)
+      const payload = {
+        transitPointId: formData.transitPointId,
+        arrivalTime: formData.arrivalTime,
+        type: formData.type,
+        transitOrder: tripTransits.length,
+      }
 
-    const newTransit: TripTransit = {
-      id: `tt-${String(tripTransits.length + 1).padStart(3, "0")}`,
-      tripId,
-      transitPointId: formData.transitPointId,
-      transitPoint: selectedTransitPoint,
-      arrivalTime: formData.arrivalTime,
-      transitOrder: tripTransits.length,
-      type: formData.type,
+      const response = await api.post(`/trips/${tripId}/transits`, payload)
+
+      // Refresh the transit points list
+      await fetchTripTransits()
+      await fetchAvailableTransitPoints()
+
+      setIsAddDialogOpen(false)
+      resetForm()
+      toast({
+        title: "Thành công",
+        description: "Đã thêm điểm trung chuyển vào chuyến đi.",
+      })
+    } catch (error) {
+      console.error("Error adding transit point:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể thêm điểm trung chuyển. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    setTripTransits([...tripTransits, newTransit])
-    setIsAddDialogOpen(false)
-    resetForm()
-    toast({
-      title: "Transit Point Added",
-      description: `${selectedTransitPoint.name} has been added to the trip.`,
-    })
   }
 
-  const handleDeleteTransit = (transitId: string) => {
-    const updatedTransits = tripTransits
-      .filter((transit) => transit.id !== transitId)
-      .map((transit, index) => ({
-        ...transit,
-        transitOrder: index,
-      }))
+  const handleDeleteTransit = async (transitId: string) => {
+    try {
+      setIsLoading(true)
+      await api.delete(`/trips/${tripId}/transits/${transitId}`)
 
-    setTripTransits(updatedTransits)
-    toast({
-      title: "Transit Point Removed",
-      description: "The transit point has been removed from the trip.",
-      variant: "destructive",
-    })
+      // Refresh the transit points list
+      await fetchTripTransits()
+      await fetchAvailableTransitPoints()
+
+      toast({
+        title: "Thành công",
+        description: "Đã xóa điểm trung chuyển khỏi chuyến đi.",
+        variant: "destructive",
+      })
+    } catch (error) {
+      console.error("Error deleting transit point:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể xóa điểm trung chuyển. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleDragEnd = (result: any) => {
+  const handleDragEnd = async (result: any) => {
     if (!result.destination) return
 
     const items = Array.from(tripTransits)
@@ -233,29 +230,76 @@ export default function TripTransitsPage() {
     }))
 
     setTripTransits(updatedItems)
-    toast({
-      title: "Transit Order Updated",
-      description: "The transit order has been updated successfully.",
-    })
+
+    try {
+      // Send the updated order to the server
+      await api.put(`/trips/${tripId}/transits/reorder`, {
+        transitOrders: updatedItems.map((item) => ({
+          id: item.id,
+          order: item.transitOrder,
+        })),
+      })
+
+      toast({
+        title: "Thành công",
+        description: "Đã cập nhật thứ tự điểm trung chuyển.",
+      })
+    } catch (error) {
+      console.error("Error updating transit order:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể cập nhật thứ tự điểm trung chuyển. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+      // Revert to the original order by refetching
+      fetchTripTransits()
+    }
   }
 
-  const handleTimeChange = (transitId: string, time: string) => {
-    const updatedTransits = tripTransits.map((transit) =>
-      transit.id === transitId ? { ...transit, arrivalTime: time } : transit,
-    )
-    setTripTransits(updatedTransits)
+  const handleTimeChange = async (transitId: string, time: string) => {
+    try {
+      await api.put(`/trips/${tripId}/transits/${transitId}`, {
+        arrivalTime: time,
+      })
+
+      // Update local state
+      const updatedTransits = tripTransits.map((transit) =>
+        transit.id === transitId ? { ...transit, arrivalTime: time } : transit,
+      )
+      setTripTransits(updatedTransits)
+    } catch (error) {
+      console.error("Error updating arrival time:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể cập nhật thời gian đến. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    }
   }
 
   const getTypeBadge = (type: string) => {
     switch (type) {
       case "PICKUP":
-        return <Badge className="bg-green-500">Pickup</Badge>
+        return <Badge className="bg-green-500">Đón khách</Badge>
       case "DROPOFF":
-        return <Badge className="bg-blue-500">Dropoff</Badge>
+        return <Badge className="bg-blue-500">Trả khách</Badge>
       case "STOP":
-        return <Badge variant="outline">Stop</Badge>
+        return <Badge variant="outline">Điểm dừng</Badge>
       default:
         return <Badge variant="secondary">{type}</Badge>
+    }
+  }
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "PICKUP":
+        return "Đón khách"
+      case "DROPOFF":
+        return "Trả khách"
+      case "STOP":
+        return "Điểm dừng"
+      default:
+        return type
     }
   }
 
@@ -269,33 +313,33 @@ export default function TripTransitsPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight">Trip Transit Points</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Điểm Trung Chuyển Của Chuyến Đi</h1>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Transit Point
+                Thêm Điểm Trung Chuyển
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Add Transit Point</DialogTitle>
-                <DialogDescription>Add a transit point to this trip.</DialogDescription>
+                <DialogTitle>Thêm Điểm Trung Chuyển</DialogTitle>
+                <DialogDescription>Thêm điểm trung chuyển vào chuyến đi này.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="transitPoint" className="text-right">
-                    Transit Point
+                    Điểm Trung Chuyển
                   </Label>
                   <Select value={formData.transitPointId} onValueChange={handleTransitPointChange}>
                     <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select transit point" />
+                      <SelectValue placeholder="Chọn điểm trung chuyển" />
                     </SelectTrigger>
                     <SelectContent>
                       {availableTransitPoints.length === 0 ? (
                         <SelectItem value="none" disabled>
-                          No available transit points
+                          Không có điểm trung chuyển khả dụng
                         </SelectItem>
                       ) : (
                         availableTransitPoints.map((point) => (
@@ -309,7 +353,7 @@ export default function TripTransitsPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="arrivalTime" className="text-right">
-                    Arrival Time
+                    Thời Gian Đến
                   </Label>
                   <Input
                     id="arrivalTime"
@@ -322,26 +366,29 @@ export default function TripTransitsPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="type" className="text-right">
-                    Type
+                    Loại
                   </Label>
                   <Select value={formData.type} onValueChange={handleTypeChange}>
                     <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder="Chọn loại" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PICKUP">Pickup</SelectItem>
-                      <SelectItem value="DROPOFF">Dropoff</SelectItem>
-                      <SelectItem value="STOP">Stop</SelectItem>
+                      <SelectItem value="PICKUP">Đón khách</SelectItem>
+                      <SelectItem value="DROPOFF">Trả khách</SelectItem>
+                      <SelectItem value="STOP">Điểm dừng</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
+                  Hủy
                 </Button>
-                <Button onClick={handleAddTransit} disabled={!formData.transitPointId || !formData.arrivalTime}>
-                  Add Transit Point
+                <Button
+                  onClick={handleAddTransit}
+                  disabled={isLoading || !formData.transitPointId || !formData.arrivalTime}
+                >
+                  {isLoading ? "Đang xử lý..." : "Thêm Điểm Trung Chuyển"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -350,23 +397,27 @@ export default function TripTransitsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>{trip.name}</CardTitle>
+            <CardTitle>{trip?.name || "Đang tải..."}</CardTitle>
             <CardDescription>
-              Code: {trip.code} | Status: {trip.status}
+              Mã: {trip?.code || "..."} | Trạng thái: {trip?.status === "ACTIVE" ? "Hoạt động" : "Không hoạt động"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-4">
-              <h3 className="text-lg font-medium">Transit Schedule</h3>
-              <p className="text-sm text-muted-foreground">Drag and drop to reorder transit points.</p>
+              <h3 className="text-lg font-medium">Lịch Trình Chuyến Đi</h3>
+              <p className="text-sm text-muted-foreground">Kéo và thả để sắp xếp lại thứ tự điểm trung chuyển.</p>
             </div>
 
-            {tripTransits.length === 0 ? (
+            {isLoading ? (
               <div className="text-center py-8 border rounded-md">
-                <p className="text-muted-foreground">No transit points added to this trip yet.</p>
+                <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+              </div>
+            ) : tripTransits.length === 0 ? (
+              <div className="text-center py-8 border rounded-md">
+                <p className="text-muted-foreground">Chưa có điểm trung chuyển nào được thêm vào chuyến đi này.</p>
                 <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Transit Point
+                  Thêm Điểm Trung Chuyển
                 </Button>
               </div>
             ) : (

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,7 @@ import { Plus, MoreHorizontal, Search, ArrowRight } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import Link from "next/link"
+import api from "@/lib/axios"
 
 // Trip interface
 interface Trip {
@@ -45,79 +46,43 @@ interface Trip {
   lastModifiedAt: string
 }
 
-// Sample trips data
-const tripsData: Trip[] = [
-  {
-    id: "trip-001",
-    code: "NYC-BOS",
-    name: "New York to Boston Express",
-    description: "Direct express service from NYC to Boston",
-    status: "ACTIVE",
-    transitCount: 4,
-    detailsCount: 3,
-    createdAt: "2024-01-15T10:30:00",
-    lastModifiedAt: "2024-01-15T10:30:00",
-  },
-  {
-    id: "trip-002",
-    code: "BOS-DC",
-    name: "Boston to Washington DC",
-    description: "Premium service with stops in major cities",
-    status: "ACTIVE",
-    transitCount: 6,
-    detailsCount: 2,
-    createdAt: "2024-01-20T14:45:00",
-    lastModifiedAt: "2024-02-05T09:15:00",
-  },
-  {
-    id: "trip-003",
-    code: "DC-PHI",
-    name: "DC to Philadelphia",
-    description: "Quick service between DC and Philadelphia",
-    status: "INACTIVE",
-    transitCount: 3,
-    detailsCount: 1,
-    createdAt: "2024-02-10T09:15:00",
-    lastModifiedAt: "2024-02-10T09:15:00",
-  },
-  {
-    id: "trip-004",
-    code: "PHI-NYC",
-    name: "Philadelphia to New York",
-    description: "Regular service with comfort amenities",
-    status: "ACTIVE",
-    transitCount: 5,
-    detailsCount: 4,
-    createdAt: "2024-02-15T16:20:00",
-    lastModifiedAt: "2024-02-15T16:20:00",
-  },
-  {
-    id: "trip-005",
-    code: "NYC-DC",
-    name: "New York to Washington DC Direct",
-    description: "Non-stop premium service",
-    status: "ACTIVE",
-    transitCount: 2,
-    detailsCount: 2,
-    createdAt: "2024-03-01T11:40:00",
-    lastModifiedAt: "2024-03-01T11:40:00",
-  },
-]
-
 export default function TripsPage() {
-  const [trips, setTrips] = useState<Trip[]>(tripsData)
+  const [trips, setTrips] = useState<Trip[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentTrip, setCurrentTrip] = useState<Trip | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     code: "",
     name: "",
     description: "",
     status: "ACTIVE" as "ACTIVE" | "INACTIVE",
   })
+
+  // Fetch trips on component mount
+  useEffect(() => {
+    fetchTrips()
+  }, [])
+
+  const fetchTrips = async () => {
+    setIsLoading(true)
+    try {
+      const response = await api.get("/trips")
+      setTrips(response.data)
+    } catch (error) {
+      console.error("Error fetching trips:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải danh sách chuyến đi. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Filter trips based on search query and status filter
   const filteredTrips = trips.filter((trip) => {
@@ -153,23 +118,27 @@ export default function TripsPage() {
     })
   }
 
-  const handleAddTrip = () => {
-    const newTrip: Trip = {
-      id: `trip-${String(trips.length + 1).padStart(3, "0")}`,
-      ...formData,
-      transitCount: 0,
-      detailsCount: 0,
-      createdAt: new Date().toISOString(),
-      lastModifiedAt: new Date().toISOString(),
+  const handleAddTrip = async () => {
+    try {
+      setIsLoading(true)
+      const response = await api.post("/trips", formData)
+      setTrips([...trips, response.data])
+      setIsAddDialogOpen(false)
+      resetForm()
+      toast({
+        title: "Thành công",
+        description: `Đã thêm chuyến đi ${formData.name}.`,
+      })
+    } catch (error) {
+      console.error("Error adding trip:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể thêm chuyến đi. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    setTrips([...trips, newTrip])
-    setIsAddDialogOpen(false)
-    resetForm()
-    toast({
-      title: "Trip Added",
-      description: `${newTrip.name} has been added successfully.`,
-    })
   }
 
   const handleEditClick = (trip: Trip) => {
@@ -183,26 +152,32 @@ export default function TripsPage() {
     setIsEditDialogOpen(true)
   }
 
-  const handleUpdateTrip = () => {
+  const handleUpdateTrip = async () => {
     if (!currentTrip) return
 
-    const updatedTrips = trips.map((trip) =>
-      trip.id === currentTrip.id
-        ? {
-            ...trip,
-            ...formData,
-            lastModifiedAt: new Date().toISOString(),
-          }
-        : trip,
-    )
+    try {
+      setIsLoading(true)
+      const response = await api.put(`/trips/${currentTrip.id}`, formData)
 
-    setTrips(updatedTrips)
-    setIsEditDialogOpen(false)
-    resetForm()
-    toast({
-      title: "Trip Updated",
-      description: `${formData.name} has been updated successfully.`,
-    })
+      const updatedTrips = trips.map((trip) => (trip.id === currentTrip.id ? response.data : trip))
+
+      setTrips(updatedTrips)
+      setIsEditDialogOpen(false)
+      resetForm()
+      toast({
+        title: "Thành công",
+        description: `Đã cập nhật chuyến đi ${formData.name}.`,
+      })
+    } catch (error) {
+      console.error("Error updating trip:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể cập nhật chuyến đi. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleDeleteClick = (trip: Trip) => {
@@ -210,25 +185,39 @@ export default function TripsPage() {
     setIsDeleteDialogOpen(true)
   }
 
-  const handleDeleteTrip = () => {
+  const handleDeleteTrip = async () => {
     if (!currentTrip) return
 
-    const updatedTrips = trips.filter((trip) => trip.id !== currentTrip.id)
-    setTrips(updatedTrips)
-    setIsDeleteDialogOpen(false)
-    toast({
-      title: "Trip Deleted",
-      description: `${currentTrip.name} has been deleted successfully.`,
-      variant: "destructive",
-    })
+    try {
+      setIsLoading(true)
+      await api.delete(`/trips/${currentTrip.id}`)
+
+      const updatedTrips = trips.filter((trip) => trip.id !== currentTrip.id)
+      setTrips(updatedTrips)
+      setIsDeleteDialogOpen(false)
+      toast({
+        title: "Thành công",
+        description: `Đã xóa chuyến đi ${currentTrip.name}.`,
+        variant: "destructive",
+      })
+    } catch (error) {
+      console.error("Error deleting trip:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể xóa chuyến đi. Vui lòng thử lại sau.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return <Badge className="bg-green-500">Active</Badge>
+        return <Badge className="bg-green-500">Hoạt động</Badge>
       case "INACTIVE":
-        return <Badge variant="outline">Inactive</Badge>
+        return <Badge variant="outline">Không hoạt động</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -238,28 +227,28 @@ export default function TripsPage() {
     <DashboardLayout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Trips</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Chuyến Đi</h1>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Trip
+                Thêm Chuyến Đi
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Add New Trip</DialogTitle>
-                <DialogDescription>Enter the details for the new trip.</DialogDescription>
+                <DialogTitle>Thêm Chuyến Đi Mới</DialogTitle>
+                <DialogDescription>Nhập thông tin cho chuyến đi mới.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label htmlFor="code" className="text-right">
-                    Code
+                    Mã
                   </label>
                   <Input
                     id="code"
                     name="code"
-                    placeholder="e.g. NYC-BOS"
+                    placeholder="VD: HN-SG"
                     className="col-span-3"
                     value={formData.code}
                     onChange={handleInputChange}
@@ -267,12 +256,12 @@ export default function TripsPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label htmlFor="name" className="text-right">
-                    Name
+                    Tên
                   </label>
                   <Input
                     id="name"
                     name="name"
-                    placeholder="e.g. New York to Boston Express"
+                    placeholder="VD: Hà Nội đến Sài Gòn"
                     className="col-span-3"
                     value={formData.name}
                     onChange={handleInputChange}
@@ -280,12 +269,12 @@ export default function TripsPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label htmlFor="description" className="text-right">
-                    Description
+                    Mô tả
                   </label>
                   <Input
                     id="description"
                     name="description"
-                    placeholder="e.g. Direct express service"
+                    placeholder="VD: Dịch vụ trực tiếp"
                     className="col-span-3"
                     value={formData.description}
                     onChange={handleInputChange}
@@ -293,24 +282,26 @@ export default function TripsPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label htmlFor="status" className="text-right">
-                    Status
+                    Trạng thái
                   </label>
                   <Select value={formData.status} onValueChange={handleStatusChange}>
                     <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder="Chọn trạng thái" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ACTIVE">Active</SelectItem>
-                      <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                      <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
+                  Hủy
                 </Button>
-                <Button onClick={handleAddTrip}>Add Trip</Button>
+                <Button onClick={handleAddTrip} disabled={isLoading}>
+                  {isLoading ? "Đang xử lý..." : "Thêm Chuyến Đi"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -318,8 +309,8 @@ export default function TripsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>All Trips</CardTitle>
-            <CardDescription>Manage all trips in the system.</CardDescription>
+            <CardTitle>Tất Cả Chuyến Đi</CardTitle>
+            <CardDescription>Quản lý tất cả các chuyến đi trong hệ thống.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-4">
@@ -328,7 +319,7 @@ export default function TripsPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder="Search trips..."
+                    placeholder="Tìm kiếm chuyến đi..."
                     className="pl-8 w-[250px]"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -337,12 +328,12 @@ export default function TripsPage() {
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder="Lọc theo trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                  <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -351,19 +342,25 @@ export default function TripsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Transit Points</TableHead>
-                    <TableHead>Trip Details</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Mã</TableHead>
+                    <TableHead>Tên</TableHead>
+                    <TableHead>Điểm Trung Chuyển</TableHead>
+                    <TableHead>Chi Tiết Chuyến</TableHead>
+                    <TableHead>Trạng Thái</TableHead>
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTrips.length === 0 ? (
+                  {isLoading ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-4">
-                        No trips found
+                        Đang tải dữ liệu...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTrips.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-4">
+                        Không tìm thấy chuyến đi nào
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -374,13 +371,13 @@ export default function TripsPage() {
                         <TableCell>{trip.name}</TableCell>
                         <TableCell>
                           <Link href={`/trips/${trip.id}/transits`} className="flex items-center hover:underline">
-                            <span>{trip.transitCount} points</span>
+                            <span>{trip.transitCount} điểm</span>
                             <ArrowRight className="ml-1 h-4 w-4" />
                           </Link>
                         </TableCell>
                         <TableCell>
                           <Link href={`/trips/${trip.id}/details`} className="flex items-center hover:underline">
-                            <span>{trip.detailsCount} details</span>
+                            <span>{trip.detailsCount} chi tiết</span>
                             <ArrowRight className="ml-1 h-4 w-4" />
                           </Link>
                         </TableCell>
@@ -390,15 +387,15 @@ export default function TripsPage() {
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
                                 <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">Mở menu</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditClick(trip)}>Edit</DropdownMenuItem>
+                              <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleEditClick(trip)}>Chỉnh sửa</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => handleDeleteClick(trip)} className="text-destructive">
-                                Delete
+                                Xóa
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -417,13 +414,13 @@ export default function TripsPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Edit Trip</DialogTitle>
-            <DialogDescription>Update the details for this trip.</DialogDescription>
+            <DialogTitle>Chỉnh Sửa Chuyến Đi</DialogTitle>
+            <DialogDescription>Cập nhật thông tin cho chuyến đi này.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="edit-code" className="text-right">
-                Code
+                Mã
               </label>
               <Input
                 id="edit-code"
@@ -435,7 +432,7 @@ export default function TripsPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="edit-name" className="text-right">
-                Name
+                Tên
               </label>
               <Input
                 id="edit-name"
@@ -447,7 +444,7 @@ export default function TripsPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="edit-description" className="text-right">
-                Description
+                Mô tả
               </label>
               <Input
                 id="edit-description"
@@ -459,24 +456,26 @@ export default function TripsPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="edit-status" className="text-right">
-                Status
+                Trạng thái
               </label>
               <Select value={formData.status} onValueChange={handleStatusChange}>
                 <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder="Chọn trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                  <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
+              Hủy
             </Button>
-            <Button onClick={handleUpdateTrip}>Save Changes</Button>
+            <Button onClick={handleUpdateTrip} disabled={isLoading}>
+              {isLoading ? "Đang xử lý..." : "Lưu Thay Đổi"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -485,17 +484,17 @@ export default function TripsPage() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogTitle>Xác Nhận Xóa</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the trip "{currentTrip?.name}"? This action cannot be undone.
+              Bạn có chắc chắn muốn xóa chuyến đi "{currentTrip?.name}"? Hành động này không thể hoàn tác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
+              Hủy
             </Button>
-            <Button variant="destructive" onClick={handleDeleteTrip}>
-              Delete
+            <Button variant="destructive" onClick={handleDeleteTrip} disabled={isLoading}>
+              {isLoading ? "Đang xử lý..." : "Xóa"}
             </Button>
           </DialogFooter>
         </DialogContent>
